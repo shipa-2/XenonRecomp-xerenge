@@ -29,15 +29,6 @@ struct be
 {
     T value;
 
-    be() : value(0)
-    {
-    }
-
-    be(const T v)
-    {
-        set(v);
-    }
-
     static T byteswap(T value)
     {
         if constexpr (std::is_same_v<T, double>)
@@ -101,12 +92,14 @@ struct xpointer
 {
     be<uint32_t> ptr;
 
-    xpointer() : ptr(0)
+    xpointer()
     {
+        ptr = 0;
     }
 
-    xpointer(T* p) : ptr(p != nullptr ? (reinterpret_cast<size_t>(p) - reinterpret_cast<size_t>(MmGetHostAddress(0))) : 0)
+    xpointer(T* p)
     {
+        ptr = p != nullptr ? (reinterpret_cast<size_t>(p) - reinterpret_cast<size_t>(MmGetHostAddress(0))) : 0;
     }
 
     T* get() const

@@ -1,4 +1,3 @@
-#include <stdio.h>
 #ifndef PPC_CONTEXT_H_INCLUDED
 #define PPC_CONTEXT_H_INCLUDED
 
@@ -9,7 +8,6 @@
 #include <climits>
 #include <cmath>
 #include <csetjmp>
-#include <csignal>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -17,6 +15,9 @@
 #include <x86/avx.h>
 #include <x86/sse.h>
 #include <x86/sse4.1.h>
+
+extern "C" uint32_t PPCGuestClock();
+extern "C" void PPCGuestMmioStore(uint8_t* base, uint32_t address, uint64_t value, uint32_t width);
 
 // SSE3 constants are missing from simde
 #ifndef _MM_DENORMALS_ZERO_MASK
@@ -88,19 +89,19 @@
 // MMIO Store handling is completely reliant on being preeceded by eieio.
 // TODO: Verify if that's always the case.
 #ifndef PPC_MM_STORE_U8
-#define PPC_MM_STORE_U8(x, y)   PPC_STORE_U8 (x, y)
+#define PPC_MM_STORE_U8(x, y)   PPCGuestMmioStore(base, (x), (y), 1)
 #endif
 
 #ifndef PPC_MM_STORE_U16
-#define PPC_MM_STORE_U16(x, y)  PPC_STORE_U16(x, y)
+#define PPC_MM_STORE_U16(x, y)  PPCGuestMmioStore(base, (x), (y), 2)
 #endif
 
 #ifndef PPC_MM_STORE_U32
-#define PPC_MM_STORE_U32(x, y)  PPC_STORE_U32(x, y)
+#define PPC_MM_STORE_U32(x, y)  PPCGuestMmioStore(base, (x), (y), 4)
 #endif
 
 #ifndef PPC_MM_STORE_U64
-#define PPC_MM_STORE_U64(x, y)  PPC_STORE_U64(x, y)
+#define PPC_MM_STORE_U64(x, y)  PPCGuestMmioStore(base, (x), (y), 8)
 #endif
 
 #ifndef PPC_CALL_FUNC
@@ -109,23 +110,42 @@
 
 #define PPC_MEMORY_SIZE 0x100000000ull
 
+typedef void PPCFunc(struct PPCContext& __restrict__ ctx, uint8_t* base);
+
 #define PPC_LOOKUP_FUNC(x, y) *(PPCFunc**)(x + PPC_IMAGE_BASE + PPC_IMAGE_SIZE + (uint64_t(uint32_t(y) - PPC_CODE_BASE) * 2))
 
+extern "C" void PPCTraceFunction(uint32_t address, PPCContext& ctx, uint8_t* base);
+extern "C" void PPCUnknownIndirectTrap(uint32_t address, PPCContext& ctx, uint8_t* base);
+
+inline void PPCDispatchIndirect(PPCContext& ctx, uint8_t* base, uint32_t address)
+{
+    const uint64_t codeEnd = PPC_CODE_BASE + PPC_CODE_SIZE;
+    if (address >= PPC_CODE_BASE && address < codeEnd)
+    {
+        if (PPCFunc* function = PPC_LOOKUP_FUNC(base, address); function != nullptr)
+        {
+            function(ctx, base);
+            return;
+        }
+    }
+    PPCUnknownIndirectTrap(address, ctx, base);
+}
+
 #ifndef PPC_CALL_INDIRECT_FUNC
-#define PPC_CALL_INDIRECT_FUNC(x) (PPC_LOOKUP_FUNC(base, x))(ctx, base)
+#define PPC_CALL_INDIRECT_FUNC(x) PPCDispatchIndirect(ctx, base, x)
 // #define PPC_CALL_INDIRECT_FUNC(x) do { \
 //     printf("Calling PPC_CALL_INDIRECT_FUNC with x = 0x%x and res is 0x%x\n", (uint32_t)(x), base + PPC_IMAGE_BASE + PPC_IMAGE_SIZE + (uint64_t(uint32_t(x) - PPC_CODE_BASE) * 2)); \
 //     (PPC_LOOKUP_FUNC(base, x))(ctx, base); \
 // } while(0)
 #endif
 
-typedef void PPCFunc(struct PPCContext& __restrict__ ctx, uint8_t* base);
-
 struct PPCFuncMapping
 {
     size_t guest;
     PPCFunc* host;
 };
+
+extern "C" uint32_t PPCMaterializeObject(PPCContext& ctx, uint8_t* base);
 
 extern PPCFuncMapping PPCFuncMappings[];
 

@@ -616,8 +616,9 @@ bool Recompiler::Recompile(
                 auto label = switchTable->second.labels[i];
                 if (label < fn.base || label >= fn.base + fn.size)
                 {
-                    println("\t\t// ERROR: 0x{:X}", label);
-                    fmt::println("ERROR: Switch case at {:X} is trying to jump outside function: {:X}", base, label);
+                    // Xbox compiler switch tables may target adjacent helper
+                    // functions.  Emit a normal call for those valid cases.
+                    printFunctionCall(label);
                     println("\t\treturn;");
                 }
                 else
@@ -2588,6 +2589,18 @@ bool Recompiler::Recompile(const Function& fn)
 
     println("PPC_FUNC_IMPL(__imp__{}) {{", name);
     println("\tPPC_FUNC_PROLOGUE();");
+    println("\tPPCTraceFunction(0x{:X}, ctx, base);", fn.base);
+    if (fn.base == 0x825AEF98)
+        println("\tctx.r3.u32 = PPCGuestClock();");
+    if (fn.base == 0x8238C278 || fn.base == 0x82381C60)
+    {
+        if (fn.base == 0x82381C60)
+            println("\tif (ctx.r4.u32 != 0) PPC_STORE_U32(ctx.r4.u32, 0);");
+        println("\tctx.r3.u32 = 0;");
+        println("\treturn;");
+    }
+    if (fn.base == 0x82382250 || fn.base == 0x82382390)
+        println("\tif (ctx.r3.u32 == 0) ctx.r3.u32 = PPCMaterializeObject(ctx, base);");
 
     auto switchTable = config.switchTables.end();
     bool allRecompiled = true;
@@ -2801,6 +2814,20 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
         println("}};");
 
         SaveCurrentOutData("ppc_func_mapping.cpp");
+    }
+
+    {
+        println("#include \"ppc_recomp_shared.h\"\n");
+        println("extern \"C\" void PPCImportedServiceTrap(const char* service, PPCContext& ctx, uint8_t* base);");
+        for (const auto& symbol : image.symbols)
+        {
+            if (symbol.name.rfind("__imp__", 0) != 0)
+                continue;
+            println("PPC_WEAK_FUNC({}) {{", symbol.name);
+            println("\tPPCImportedServiceTrap(\"{}\", ctx, base);", symbol.name);
+            println("}}\n");
+        }
+        SaveCurrentOutData("ppc_import_stubs.cpp");
     }
 
     for (size_t i = 0; i < functions.size(); i++)
