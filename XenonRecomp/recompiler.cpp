@@ -675,6 +675,22 @@ bool Recompiler::Recompile(
         println("\tif ({}.eq) return;", cr(insn.operands[0]));
         break;
 
+    case PPC_INST_BSO:
+        printConditionalBranch(false, "so");
+        break;
+
+    case PPC_INST_BNS:
+        printConditionalBranch(true, "so");
+        break;
+
+    case PPC_INST_BSOLR:
+        println("\tif ({}.so) return;", cr(insn.operands[0]));
+        break;
+
+    case PPC_INST_BNSLR:
+        println("\tif (!{}.so) return;", cr(insn.operands[0]));
+        break;
+
     case PPC_INST_BGE:
         printConditionalBranch(true, "lt");
         break;
@@ -982,6 +998,11 @@ bool Recompiler::Recompile(
     case PPC_INST_FRES:
         printSetFlushMode(false);
         println("\t{}.f64 = float(1.0 / {}.f64);", f(insn.operands[0]), f(insn.operands[1]));
+        break;
+
+    case PPC_INST_FRSQRTE:
+        printSetFlushMode(false);
+        println("\t{}.f64 = 1.0 / sqrt({}.f64);", f(insn.operands[0]), f(insn.operands[1]));
         break;
 
     case PPC_INST_FRSP:
@@ -1890,6 +1911,12 @@ bool Recompiler::Recompile(
              println("\t{}.setFromMask(simde_mm_load_si128((simde__m128i*){}.u16), 0xFFFF);", cr(6), v(insn.operands[0]));
         break;
 
+    case PPC_INST_VCMPGTUW:
+        println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_cmpgt_epu32(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_load_si128((simde__m128i*){}.u32)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
+        if (strchr(insn.opcode->name, '.'))
+            println("\t{}.setFromMask(simde_mm_load_si128((simde__m128i*){}.u32), 0xFFFF);", cr(6), v(insn.operands[0]));
+        break;
+
     case PPC_INST_VEXPTEFP:
     case PPC_INST_VEXPTEFP128:
         // TODO: vectorize
@@ -1975,6 +2002,12 @@ bool Recompiler::Recompile(
     case PPC_INST_VNMSUBFP128:
         printSetFlushMode(true);
         println("\tsimde_mm_store_ps({}.f32, simde_mm_xor_ps(simde_mm_sub_ps(simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_load_ps({}.f32)), simde_mm_load_ps({}.f32)), simde_mm_castsi128_ps(simde_mm_set1_epi32(int(0x80000000)))));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]), v(insn.operands[3]));
+        break;
+
+    case PPC_INST_VNOR:
+    case PPC_INST_VNOR128:
+        println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_xor_si128(simde_mm_or_si128(simde_mm_load_si128((simde__m128i*){}.u8), simde_mm_load_si128((simde__m128i*){}.u8)), simde_mm_set1_epi32(-1)));",
+            v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
         break;
 
     case PPC_INST_VOR:
@@ -2166,6 +2199,11 @@ bool Recompiler::Recompile(
             println("\t{}.setFromMask(simde_mm_load_si128((simde__m128i*){}.u16), 0xFFFF);", cr(6), v(insn.operands[0]));
         break;
 
+    case PPC_INST_VMINUW:
+        println("\tsimde_mm_store_si128((simde__m128i*){}.u32, simde_mm_min_epu32(simde_mm_load_si128((simde__m128i*){}.u32), simde_mm_load_si128((simde__m128i*){}.u32)));",
+            v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
+        break;
+
     case PPC_INST_VMINSH:
         println("\tsimde_mm_store_si128((simde__m128i*){}.u16, simde_mm_min_epi16(simde_mm_load_si128((simde__m128i*){}.u16), simde_mm_load_si128((simde__m128i*){}.u16)));", v(insn.operands[0]), v(insn.operands[1]), v(insn.operands[2]));
         break;
@@ -2214,6 +2252,16 @@ bool Recompiler::Recompile(
             println("simde_mm_mul_ps(simde_mm_load_ps({}.f32), simde_mm_set1_ps({}))));", v(insn.operands[1]), 1u << insn.operands[2]);
         else
             println("simde_mm_load_ps({}.f32)));", v(insn.operands[1]));
+        break;
+
+    case PPC_INST_VPKUHUM:
+    case PPC_INST_VPKUHUM128:
+        for (size_t i = 0; i < 8; i++)
+        {
+            println("\t{0}.u8[{1}] = uint8_t({2}.u16[{1}]);", vTemp(), i, v(insn.operands[2]));
+            println("\t{0}.u8[{1}] = uint8_t({2}.u16[{3}]);", vTemp(), i + 8, v(insn.operands[1]), i);
+        }
+        println("\t{} = {};", v(insn.operands[0]), vTemp());
         break;
 
     case PPC_INST_VPKUHUS:
