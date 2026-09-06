@@ -16,7 +16,6 @@
 #include <x86/sse.h>
 #include <x86/sse4.1.h>
 
-extern "C" uint32_t PPCGuestClock();
 extern "C" void PPCGuestMmioStore(uint8_t* base, uint32_t address, uint64_t value, uint32_t width);
 extern "C" void PPCGuestStoreU32(uint8_t* base, uint32_t address, uint32_t value);
 
@@ -117,6 +116,14 @@ typedef void PPCFunc(struct PPCContext& __restrict__ ctx, uint8_t* base);
 
 #define PPC_LOOKUP_FUNC(x, y) *(PPCFunc**)(x + PPC_IMAGE_BASE + PPC_IMAGE_SIZE + (uint64_t(uint32_t(y) - PPC_CODE_BASE) * 2))
 
+struct PPCFuncMapping
+{
+    size_t guest;
+    PPCFunc* host;
+};
+
+extern PPCFuncMapping PPCFuncMappings[];
+
 extern "C" void PPCTraceFunction(uint32_t address, PPCContext& ctx, uint8_t* base);
 extern "C" void PPCUnknownIndirectTrap(uint32_t address, PPCContext& ctx, uint8_t* base);
 
@@ -125,7 +132,26 @@ inline void PPCDispatchIndirect(PPCContext& ctx, uint8_t* base, uint32_t address
     const uint64_t codeEnd = PPC_CODE_BASE + PPC_CODE_SIZE;
     if (address >= PPC_CODE_BASE && address < codeEnd)
     {
-        if (PPCFunc* function = PPC_LOOKUP_FUNC(base, address); function != nullptr)
+        static const size_t mappingCount = []
+        {
+            size_t count = 0;
+            while (PPCFuncMappings[count].host != nullptr)
+                ++count;
+            return count;
+        }();
+        size_t low = 0;
+        size_t high = mappingCount;
+        while (low < high)
+        {
+            const size_t middle = low + (high - low) / 2;
+            if (PPCFuncMappings[middle].guest < address)
+                low = middle + 1;
+            else
+                high = middle;
+        }
+        PPCFunc* function = low < mappingCount &&
+            PPCFuncMappings[low].guest == address ? PPCFuncMappings[low].host : nullptr;
+        if (function != nullptr)
         {
             function(ctx, base);
             return;
@@ -141,16 +167,6 @@ inline void PPCDispatchIndirect(PPCContext& ctx, uint8_t* base, uint32_t address
 //     (PPC_LOOKUP_FUNC(base, x))(ctx, base); \
 // } while(0)
 #endif
-
-struct PPCFuncMapping
-{
-    size_t guest;
-    PPCFunc* host;
-};
-
-extern "C" uint32_t PPCMaterializeObject(PPCContext& ctx, uint8_t* base);
-
-extern PPCFuncMapping PPCFuncMappings[];
 
 union PPCRegister
 {

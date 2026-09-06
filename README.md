@@ -224,7 +224,7 @@ Property|Description
 -|-
 name|Function name of the mid-asm hook. You can reuse function names to place the same implementation at multiple addresses. Otherwise, unique implementations must have unique names.
 address|Address of the instruction where the function call will be placed. This does not overwrite the instruction at the specified address.
-registers|Registers to pass as arguments to the mid-asm hook. This is a list of registers because the local variable optimization does not keep optimized registers within the PPC context struct.
+registers|Registers to pass as arguments to the mid-asm hook. This is a list of registers because the local variable optimization does not keep optimized registers within the PPC context struct. Besides the usual `rN`/`fN`/`vN`/`crN`/`ctr`/`xer`/`reserved`/`fpscr` names, `base` (the guest memory pointer) and `ctx` (the whole `PPCContext&`) can also be listed when the hook needs to read/write guest memory or reach registers not already covered by the other arguments.
 return|Set to `true` to indicate that the function where the hook was inserted should immediately return after calling the mid-asm hook.
 return_on_true|Set to `true` to indicate that the function should return if the mid-asm hook call returns `true`.
 return_on_false|Set to `true` to indicate that the function should return if the mid-asm hook call returns `false`.

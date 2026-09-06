@@ -451,9 +451,16 @@ bool Recompiler::Recompile(
 
                 switch (reg[0])
                 {
+                case 'b':
+                    if (reg == "base")
+                        out += "base";
+                    break;
+
                 case 'c':
                     if (reg == "ctr")
                         out += ctr();
+                    else if (reg == "ctx")
+                        out += "ctx";
                     else
                         out += cr(std::atoi(reg.c_str() + 2));
                     break;
@@ -2590,17 +2597,6 @@ bool Recompiler::Recompile(const Function& fn)
     println("PPC_FUNC_IMPL(__imp__{}) {{", name);
     println("\tPPC_FUNC_PROLOGUE();");
     println("\tPPCTraceFunction(0x{:X}, ctx, base);", fn.base);
-    if (fn.base == 0x825AEF98)
-        println("\tctx.r3.u32 = PPCGuestClock();");
-    if (fn.base == 0x8238C278 || fn.base == 0x82381C60)
-    {
-        if (fn.base == 0x82381C60)
-            println("\tif (ctx.r4.u32 != 0) PPC_STORE_U32(ctx.r4.u32, 0);");
-        println("\tctx.r3.u32 = 0;");
-        println("\treturn;");
-    }
-    if (fn.base == 0x82382250 || fn.base == 0x82382390)
-        println("\tif (ctx.r3.u32 == 0) ctx.r3.u32 = PPCMaterializeObject(ctx, base);");
 
     auto switchTable = config.switchTables.end();
     bool allRecompiled = true;
