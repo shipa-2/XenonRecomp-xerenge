@@ -18,6 +18,7 @@
 
 extern "C" uint32_t PPCGuestClock();
 extern "C" void PPCGuestMmioStore(uint8_t* base, uint32_t address, uint64_t value, uint32_t width);
+extern "C" void PPCGuestStoreU32(uint8_t* base, uint32_t address, uint32_t value);
 
 // SSE3 constants are missing from simde
 #ifndef _MM_DENORMALS_ZERO_MASK
@@ -79,15 +80,17 @@ extern "C" void PPCGuestMmioStore(uint8_t* base, uint32_t address, uint64_t valu
 #endif
 
 #ifndef PPC_STORE_U32
-#define PPC_STORE_U32(x, y) *(volatile uint32_t*)(base + (x)) = __builtin_bswap32(y)
+#define PPC_STORE_U32(x, y) PPCGuestStoreU32(base, (x), (y))
 #endif
 
 #ifndef PPC_STORE_U64
 #define PPC_STORE_U64(x, y) *(volatile uint64_t*)(base + (x)) = __builtin_bswap64(y)
 #endif
 
-// MMIO Store handling is completely reliant on being preeceded by eieio.
-// TODO: Verify if that's always the case.
+// Explicit MMIO stores still use the PPC_MM_STORE hooks.  Regular 32-bit
+// stores are routed through PPCGuestStoreU32 as well; the runtime can then
+// recognize memory-mapped addresses even when the original instruction was
+// not preceded by eieio.
 #ifndef PPC_MM_STORE_U8
 #define PPC_MM_STORE_U8(x, y)   PPCGuestMmioStore(base, (x), (y), 1)
 #endif
