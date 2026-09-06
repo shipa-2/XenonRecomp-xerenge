@@ -145,15 +145,29 @@ Image Xex2LoadImage(const uint8_t* data, size_t dataSize)
             constexpr uint32_t KeySize = 16;
             AES_ctx aesContext;
 
-            uint8_t decryptedKey[KeySize];
-            memcpy(decryptedKey, security->aesKey, KeySize);
-            AES_init_ctx_iv(&aesContext, Xex2RetailKey, AESBlankIV);
-            AES_CBC_decrypt_buffer(&aesContext, decryptedKey, KeySize);
+            const size_t encryptedSize = dataSize - header->headerSize;
 
-            decryptedData = std::make_unique<uint8_t[]>(dataSize - header->headerSize);
-            memcpy(decryptedData.get(), data + header->headerSize, dataSize - header->headerSize);
-            AES_init_ctx_iv(&aesContext, decryptedKey, AESBlankIV);
-            AES_CBC_decrypt_buffer(&aesContext, decryptedData.get(), dataSize - header->headerSize);
+            // Devkit/beta builds use an all zero key instead of the retail one.
+            const uint8_t* keys[] = { Xex2RetailKey, Xex2DevkitKey };
+
+            for (const auto* key : keys)
+            {
+                uint8_t decryptedKey[KeySize];
+                memcpy(decryptedKey, security->aesKey, KeySize);
+                AES_init_ctx_iv(&aesContext, key, AESBlankIV);
+                AES_CBC_decrypt_buffer(&aesContext, decryptedKey, KeySize);
+
+                decryptedData = std::make_unique<uint8_t[]>(encryptedSize);
+                memcpy(decryptedData.get(), data + header->headerSize, encryptedSize);
+                AES_init_ctx_iv(&aesContext, decryptedKey, AESBlankIV);
+                AES_CBC_decrypt_buffer(&aesContext, decryptedData.get(), encryptedSize);
+
+                if (fileFormatInfo->compressionType == XEX_COMPRESSION_NORMAL ||
+                    (encryptedSize >= 2 && decryptedData[0] == 'M' && decryptedData[1] == 'Z'))
+                {
+                    break;
+                }
+            }
 
             srcData = decryptedData.get();
         }
