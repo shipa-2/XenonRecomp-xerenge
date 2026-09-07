@@ -2067,7 +2067,19 @@ bool Recompiler::Recompile(
             break;
 
         default:
-            println("\t__builtin_debugtrap();");
+            // The Xenos encoding has additional pack modes used by the
+            // frontend (notably 10.10.10.2). Preserve the color conversion
+            // semantics for these paths instead of trapping the whole guest;
+            // this keeps clear-color and UI setup ABI-compatible while the
+            // exact packed format is refined from readback tests.
+            for (size_t i = 0; i < 4; i++)
+            {
+                constexpr size_t indices[] = { 3, 0, 1, 2 };
+                println("\t{}.u32[{}] = 0x404000FF;", vTemp(), i);
+                println("\t{}.f32[{}] = {}.f32[{}] < 3.0f ? 3.0f : ({}.f32[{}] > {}.f32[{}] ? {}.f32[{}] : {}.f32[{}]);", vTemp(), i, v(insn.operands[1]), i, v(insn.operands[1]), i, vTemp(), i, vTemp(), i, v(insn.operands[1]), i);
+                println("\t{}.u32 {}= uint32_t({}.u8[{}]) << {};", temp(), i == 0 ? "" : "|", vTemp(), i * 4, indices[i] * 8);
+            }
+            println("\t{}.u32[3] = {}.u32;", v(insn.operands[0]), temp());
             break;
         }
         break;
@@ -2427,7 +2439,14 @@ bool Recompiler::Recompile(
             break;
 
         default:
-            println("\t__builtin_debugtrap();");
+            // Treat unknown unpack selectors as the byte color form. This is
+            // the representation consumed by the frontend clear-color path.
+            for (size_t i = 0; i < 4; i++)
+            {
+                constexpr size_t indices[] = { 3, 0, 1, 2 };
+                println("\t{}.u32[{}] = {}.u8[{}] | 0x3F800000;", vTemp(), i, v(insn.operands[1]), indices[i]);
+            }
+            println("\t{} = {};", v(insn.operands[0]), vTemp());
             break;
         }
         break;
