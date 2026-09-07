@@ -2162,9 +2162,14 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_VSLO:
-        println("\t__debugbreak();");
-        // println("\t{}.u8 = _mm_or_si128(_mm_slli_si128({}.u8, {}), simde_mm_srli_si128({}.u8, {}));",
-        //     v(insn.operands[0]), v(insn.operands[1]), insn.operands[2], v(insn.operands[3]), 16 - insn.operands[2]);
+        // VSLO shifts the source vector left by the encoded byte count and
+        // fills the vacated low bytes with zero.  The old placeholder broke
+        // the guest with __debugbreak during frontend initialization.
+        println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_slli_si128(simde_mm_load_si128((simde__m128i*){}.u8), {}));", v(insn.operands[0]), v(insn.operands[1]), insn.operands[2]);
+        break;
+
+    case PPC_INST_VSLO128:
+        println("\tsimde_mm_store_si128((simde__m128i*){}.u8, simde_mm_slli_si128(simde_mm_load_si128((simde__m128i*){}.u8), {}));", v(insn.operands[0]), v(insn.operands[1]), insn.operands[2]);
         break;
 
     case PPC_INST_VSUBSHS:
