@@ -2540,9 +2540,16 @@ bool Recompiler::Recompile(const Function& fn)
 
                 switch (reg[0])
                 {
+                case 'b':
+                    if (reg == "base")
+                        print("uint8_t* base");
+                    break;
+
                 case 'c':
                     if (reg == "ctr")
                         print("PPCRegister& ctr");
+                    else if (reg == "ctx")
+                        print("PPCContext& ctx");
                     else
                         print("PPCCRRegister& {}", reg);
                     break;
