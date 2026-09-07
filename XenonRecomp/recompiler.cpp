@@ -2605,6 +2605,18 @@ bool Recompiler::Recompile(const Function& fn)
     println("\tPPC_FUNC_PROLOGUE();");
     println("\tPPCTraceFunction(0x{:X}, ctx, base);", fn.base);
 
+    // Some XEX exports are listed as ordinary functions even though their
+    // bodies are import veneers.  The generated body for NtSuspendThread at
+    // 0x825C6C1C is only a `blr`; route it through the runtime service ABI so
+    // the title observes the real suspend/count contract.
+    if (fn.base == 0x825C6C1C)
+    {
+        println("\tPPCImportedServiceTrap(\"__imp__NtSuspendThread\", ctx, base);");
+        println("\treturn;");
+        println("}}\n");
+        return true;
+    }
+
     auto switchTable = config.switchTables.end();
     bool allRecompiled = true;
     CSRState csrState = CSRState::Unknown;
@@ -2799,6 +2811,7 @@ void Recompiler::Recompile(const std::filesystem::path& headerFilePath)
         println("#pragma once\n");
         println("#include \"ppc_config.h\"");
         println("#include \"ppc_context.h\"\n");
+        println("extern \"C\" void PPCImportedServiceTrap(const char* service, PPCContext& ctx, uint8_t* base);\n");
 
         for (auto& symbol : image.symbols)
             println("PPC_EXTERN_FUNC({});", symbol.name);
