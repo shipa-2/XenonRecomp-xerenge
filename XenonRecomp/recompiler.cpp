@@ -735,7 +735,13 @@ bool Recompiler::Recompile(
         break;
 
     case PPC_INST_BLRL:
-        println("__builtin_debugtrap();");
+        // Branch-and-link through the address currently held in LR. Keep the
+        // target before installing the return address; this is used by XEX
+        // callback thunks such as `mtlr r3; blrl`.
+        println("\tctx.ctr.u32 = ctx.lr.u32;");
+        if (!config.skipLr)
+            println("\tctx.lr = 0x{:X};", base + 4);
+        println("\tPPC_CALL_INDIRECT_FUNC(ctx.ctr.u32);");
         break;
 
     case PPC_INST_BLT:
