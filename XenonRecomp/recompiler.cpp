@@ -738,7 +738,7 @@ bool Recompiler::Recompile(
         // Branch-and-link through the address currently held in LR. Keep the
         // target before installing the return address; this is used by XEX
         // callback thunks such as `mtlr r3; blrl`.
-        println("\tctx.ctr.u32 = ctx.lr.u32;");
+        println("\tctx.ctr.u64 = ctx.lr;");
         if (!config.skipLr)
             println("\tctx.lr = 0x{:X};", base + 4);
         println("\tPPC_CALL_INDIRECT_FUNC(ctx.ctr.u32);");
