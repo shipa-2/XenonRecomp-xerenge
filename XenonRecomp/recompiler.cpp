@@ -2664,13 +2664,74 @@ bool Recompiler::Recompile(const Function& fn)
     println("\tPPC_FUNC_PROLOGUE();");
     println("\tPPCTraceFunction(0x{:X}, ctx, base);", fn.base);
 
-    // Some XEX exports are listed as ordinary functions even though their
-    // bodies are import veneers.  The generated body for NtSuspendThread at
-    // 0x825C6C1C is only a `blr`; route it through the runtime service ABI so
-    // the title observes the real suspend/count contract.
-    if (fn.base == 0x825C6C1C)
+    // The XEX export table contains a second set of kernel import veneers.
+    // They are represented as ordinary functions and their bodies contain
+    // only `blr`, so compiling them literally silently turns real kernel
+    // calls into successful no-ops.  Route the veneers through the runtime
+    // service ABI instead.  Keep this table here because the addresses are
+    // title-specific exports, while the service implementation is shared by
+    // all generated titles.
+    std::string importedService;
+    switch (fn.base)
     {
-        println("\tPPCImportedServiceTrap(\"__imp__NtSuspendThread\", ctx, base);");
+    case 0x825C6B0C: importedService = "KeQueryPerformanceFrequency"; break;
+    case 0x825C6B4C: importedService = "KeEnableFpuExceptions"; break;
+    case 0x825C6BAC: importedService = "KeBugCheck"; break;
+    case 0x825C6BCC: importedService = "NtCreateEvent"; break;
+    case 0x825C6BDC: importedService = "NtClose"; break;
+    case 0x825C6BEC: importedService = "NtResumeThread"; break;
+    case 0x825C6BFC: importedService = "ObReferenceObjectByHandle"; break;
+    case 0x825C6C0C: importedService = "KeQueryBasePriorityThread"; break;
+    case 0x825C6C1C: importedService = "NtSuspendThread"; break;
+    case 0x825C6C2C: importedService = "KeSetAffinityThread"; break;
+    case 0x825C6C3C: importedService = "NtWaitForSingleObjectEx"; break;
+    case 0x825C6C4C: importedService = "NtWriteFile"; break;
+    case 0x825C6C5C: importedService = "NtCreateFile"; break;
+    case 0x825C6C6C: importedService = "RtlInitAnsiString"; break;
+    case 0x825C6C7C: importedService = "ExTerminateThread"; break;
+    case 0x825C6C8C: importedService = "NtReadFile"; break;
+    case 0x825C6C9C: importedService = "RtlVswprintf"; break;
+    case 0x825C6CAC: importedService = "MmAllocatePhysicalMemoryEx"; break;
+    case 0x825C6CBC: importedService = "MmQueryAllocationSize"; break;
+    case 0x825C6CCC: importedService = "MmQueryAddressProtect"; break;
+    case 0x825C6CDC: importedService = "NtQueryInformationFile"; break;
+    case 0x825C6CEC: importedService = "NtSetInformationFile"; break;
+    case 0x825C6CFC: importedService = "NtSetEvent"; break;
+    case 0x825C6D0C: importedService = "RtlTimeToTimeFields"; break;
+    case 0x825C6D1C: importedService = "KeQuerySystemTime"; break;
+    case 0x825C6D2C: importedService = "RtlTimeFieldsToTime"; break;
+    case 0x825C6D3C: importedService = "NtDuplicateObject"; break;
+    case 0x825C6D4C: importedService = "XexCheckExecutablePrivilege"; break;
+    case 0x825C6D5C: importedService = "NtAllocateVirtualMemory"; break;
+    case 0x825C6D6C: importedService = "KeBugCheckEx"; break;
+    case 0x825C6D7C: importedService = "NtFreeVirtualMemory"; break;
+    case 0x825C6D8C: importedService = "RtlCompareMemoryUlong"; break;
+    case 0x825C6D9C: importedService = "NtQueryVirtualMemory"; break;
+    case 0x825C6DAC: importedService = "RtlRaiseException"; break;
+    case 0x825C6DBC: importedService = "NtClearEvent"; break;
+    case 0x825C6DCC: importedService = "RtlUnicodeToMultiByteN"; break;
+    case 0x825C6DDC: importedService = "NtOpenFile"; break;
+    case 0x825C6DEC: importedService = "NtSetTimerEx"; break;
+    case 0x825C6DFC: importedService = "NtCreateTimer"; break;
+    case 0x825C6E0C: importedService = "NtCancelTimer"; break;
+    case 0x825C6E1C: importedService = "RtlFreeAnsiString"; break;
+    case 0x825C6E2C: importedService = "RtlUnicodeStringToAnsiString"; break;
+    case 0x825C6E3C: importedService = "RtlMultiByteToUnicodeN"; break;
+    case 0x825C6E4C: importedService = "NtFlushBuffersFile"; break;
+    case 0x825C6E5C: importedService = "RtlImageXexHeaderField"; break;
+    case 0x825C6E6C: importedService = "HalReturnToFirmware"; break;
+    case 0x825C6E7C: importedService = "NtQueryDirectoryFile"; break;
+    case 0x825C6E8C: importedService = "KeDelayExecutionThread"; break;
+    case 0x825C6E9C: importedService = "KeReleaseSemaphore"; break;
+    case 0x825C6EAC: importedService = "NtCreateSemaphore"; break;
+    case 0x825B1BB8: importedService = "RtlAllocateHeap"; break;
+    case 0x825B24A8: importedService = "RtlFreeHeap"; break;
+    case 0x825B2790: importedService = "RtlReAllocateHeap"; break;
+    default: break;
+    }
+    if (!importedService.empty())
+    {
+        println("\tPPCImportedServiceTrap(\"__imp__{}\", ctx, base);", importedService);
         println("\treturn;");
         println("}}\n");
         return true;
