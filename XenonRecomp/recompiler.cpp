@@ -2727,6 +2727,9 @@ bool Recompiler::Recompile(const Function& fn)
     case 0x825B1BB8: importedService = "RtlAllocateHeap"; break;
     case 0x825B24A8: importedService = "RtlFreeHeap"; break;
     case 0x825B2790: importedService = "RtlReAllocateHeap"; break;
+    case 0x82566CE0: importedService = "XAudioEffectManagerQueryEffectSize"; break;
+    case 0x8256ED38: importedService = "XAudioRoutedVoiceInitialize"; break;
+    case 0x8235F370: importedService = "XenonDvdFileSync"; break;
     default: break;
     }
     if (!importedService.empty())
