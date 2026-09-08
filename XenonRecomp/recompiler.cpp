@@ -2674,6 +2674,26 @@ bool Recompiler::Recompile(const Function& fn)
     std::string importedService;
     switch (fn.base)
     {
+    case 0x825C67DC: importedService = "VdEnableRingBufferRPtrWriteBack"; break;
+    case 0x825C67EC: importedService = "VdInitializeRingBuffer"; break;
+    case 0x825C680C: importedService = "VdSetSystemCommandBufferGpuIdentifierAddress"; break;
+    case 0x825C681C: importedService = "VdGetGraphicsAsicID"; break;
+    case 0x825C682C: importedService = "VdEnableDisableClockGating"; break;
+    case 0x825C684C: importedService = "VdPersistDisplay"; break;
+    case 0x825C685C: importedService = "VdSwap"; break;
+    case 0x825C686C: importedService = "VdGetSystemCommandBuffer"; break;
+    case 0x825C687C: importedService = "VdGetCurrentDisplayGamma"; break;
+    case 0x825C68BC: importedService = "VdShutdownEngines"; break;
+    case 0x825C68DC: importedService = "VdSetGraphicsInterruptCallback"; break;
+    case 0x825C68EC: importedService = "VdInitializeEngines"; break;
+    case 0x825C690C: importedService = "VdQueryVideoMode"; break;
+    case 0x825C691C: importedService = "VdGetCurrentDisplayInformation"; break;
+    case 0x825C692C: importedService = "VdSetDisplayMode"; break;
+    case 0x825C693C: importedService = "VdIsHSIOTrainingSucceeded"; break;
+    case 0x825C694C: importedService = "VdInitializeEDRAM"; break;
+    case 0x825C697C: importedService = "KeWaitForSingleObject"; break;
+    case 0x825C698C: importedService = "KeResetEvent"; break;
+    case 0x825C699C: importedService = "KeSetEvent"; break;
     case 0x825C69BC: importedService = "ExCreateThread"; break;
     case 0x825C6B0C: importedService = "KeQueryPerformanceFrequency"; break;
     case 0x825C6B4C: importedService = "KeEnableFpuExceptions"; break;
