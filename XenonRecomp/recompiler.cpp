@@ -251,6 +251,23 @@ void Recompiler::Analyse()
     }
 
     std::sort(functions.begin(), functions.end(), [](auto& lhs, auto& rhs) { return lhs.base < rhs.base; });
+
+    // Every function in this vector is emitted as a callable PPC body below.
+    // Functions discovered from indirect-call targets do not necessarily have
+    // an image symbol yet, which used to leave their generated bodies absent
+    // from PPCFuncMappings and made valid guest targets look unresolved at
+    // runtime. Populate the dispatch symbols from the final function list.
+    for (const auto& function : functions)
+    {
+        if (image.symbols.find(function.base) == image.symbols.end())
+        {
+            image.symbols.emplace(
+                fmt::format("sub_{:X}", function.base),
+                function.base,
+                function.size,
+                Symbol_Function);
+        }
+    }
 }
 
 bool Recompiler::Recompile(
@@ -370,6 +387,18 @@ bool Recompiler::Recompile(
 
     auto printFunctionCall = [&](uint32_t address)
         {
+            // Burnout's memory-manager jump table uses these two leaf
+            // callbacks as accessors for blocks 19 and 21.  The retail leaf
+            // preserves the manager in r3 when the owner check misses, while
+            // the caller still consumes the block pointer stored in the
+            // manager.  Preserve that title ABI in generated switch calls.
+            if (address == 0x8210756C || address == 0x821075A0)
+            {
+                println("\tsub_{:X}(ctx, base);", address);
+                println("\tctx.r3.u64 = PPC_LOAD_U32(ctx.r11.u32 + {});",
+                    address == 0x8210756C ? 3760 : 3792);
+                return;
+            }
             if (address == config.longJmpAddress)
             {
                 println("\tlongjmp(*reinterpret_cast<jmp_buf*>(base + {}.u32), {}.s32);", r(3), r(4));
