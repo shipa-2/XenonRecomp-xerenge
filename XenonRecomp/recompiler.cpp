@@ -2674,6 +2674,7 @@ bool Recompiler::Recompile(const Function& fn)
     std::string importedService;
     switch (fn.base)
     {
+    case 0x825C69BC: importedService = "ExCreateThread"; break;
     case 0x825C6B0C: importedService = "KeQueryPerformanceFrequency"; break;
     case 0x825C6B4C: importedService = "KeEnableFpuExceptions"; break;
     case 0x825C6BAC: importedService = "KeBugCheck"; break;
