@@ -2745,6 +2745,12 @@ bool Recompiler::Recompile(const Function& fn)
     case 0x825C6E8C: importedService = "KeDelayExecutionThread"; break;
     case 0x825C6E9C: importedService = "KeReleaseSemaphore"; break;
     case 0x825C6EAC: importedService = "NtCreateSemaphore"; break;
+    // Some kernel imports are also present in the title's export/function list.
+    // In that case the generated `sub_...` veneer must still dispatch through
+    // the runtime service instead of compiling the veneer body (usually `blr`)
+    // as a no-op.
+    case 0x825C616C: importedService = "XGetLanguage"; break;
+    case 0x825C68FC: importedService = "ExGetXConfigSetting"; break;
     case 0x825B1BB8: importedService = "RtlAllocateHeap"; break;
     case 0x825B24A8: importedService = "RtlFreeHeap"; break;
     case 0x825B2790: importedService = "RtlReAllocateHeap"; break;
