@@ -5,12 +5,14 @@
 #error "ppc_config.h must be included before ppc_context.h"
 #endif
 
+#include <chrono>
 #include <climits>
 #include <cmath>
 #include <csetjmp>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
 
 #include <x86/avx.h>
 #include <x86/sse.h>
@@ -760,7 +762,51 @@ inline uint64_t __rdtsc()
                  : "=r"(ret)::"memory");
     return ret;
 }
-#elif !defined(__x86_64__) && !defined(_M_X64)
+#elif defined(__x86_64__) || defined(_M_X64)
+// mftb lowers straight to this function, so every title's read of the
+// Xbox 360 hardware time-base comes through here. Real Xbox 360 hardware
+// runs that time-base at a fixed ~49.875 MHz; the host TSC this compiles to
+// on x86_64 runs at the host's multi-GHz clock instead. A title that
+// hardcodes the Xbox 360 constant (rather than calling
+// KeQueryPerformanceFrequency, which already reports the *host*'s
+// calibrated TSC rate to stay self-consistent with unscaled ticks) would
+// otherwise see elapsed time inflated by however much faster the host runs
+// - turning "a few milliseconds since the last tick" into "over a second"
+// and turning a fixed-timestep catch-up loop into an effectively infinite
+// one. Scale ticks down to emulate the real console's rate so both kinds of
+// title code see consistent, correct elapsed time.
+inline uint64_t PPCScaledTimeBase()
+{
+    unsigned int lo, hi;
+    __asm__ __volatile__("rdtsc" : "=a"(lo), "=d"(hi));
+    const uint64_t raw = (static_cast<uint64_t>(hi) << 32) | lo;
+
+    static const double scale = []
+    {
+        constexpr double kXbox360TimeBaseHz = 49875000.0;
+        unsigned int startLo, startHi;
+        __asm__ __volatile__("rdtsc" : "=a"(startLo), "=d"(startHi));
+        const uint64_t startTicks =
+            (static_cast<uint64_t>(startHi) << 32) | startLo;
+        const auto startTime = std::chrono::steady_clock::now();
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        unsigned int endLo, endHi;
+        __asm__ __volatile__("rdtsc" : "=a"(endLo), "=d"(endHi));
+        const uint64_t endTicks =
+            (static_cast<uint64_t>(endHi) << 32) | endLo;
+        const auto elapsedNanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
+        if (elapsedNanoseconds <= 0 || endTicks <= startTicks)
+            return 1.0;
+        const double hostHz = static_cast<double>(endTicks - startTicks) *
+            1000000000.0 / static_cast<double>(elapsedNanoseconds);
+        return kXbox360TimeBaseHz / hostHz;
+    }();
+
+    return static_cast<uint64_t>(static_cast<double>(raw) * scale);
+}
+#define __rdtsc() PPCScaledTimeBase()
+#else
 #   error "Missing implementation for __rdtsc()"
 #endif
 
